@@ -1,114 +1,115 @@
-# krishi-awaaz
+# Krishi Awaaz simulation
 
-<p align="left">
-  <img alt="Status" src="https://img.shields.io/badge/status-in%20development-yellow">
-  <img alt="Language" src="https://img.shields.io/badge/language-Python-blue">
-  <img alt="License" src="https://img.shields.io/badge/license-Private-lightgrey">
-  <img alt="PRs Welcome" src="https://img.shields.io/badge/PRs-team%20only-orange">
-</p>
+This repository contains the text-first simulation layer for Krishi Awaaz. It deliberately
+does not contain voice or real telephony yet. The purpose of this stage is to make the farmer
+intake, market comparison, middleman negotiation, ranking, and reporting behavior visible and
+repeatable before speech recognition makes the inputs less predictable.
 
-Private repository. Not for public distribution until the project is complete.
+All names, phone aliases, market prices, and commercial terms in `data/scenarios.json` are
+fictional test data. They must not be treated as current market information or real offers.
 
----
+## Current architecture
 
-## Table of Contents
-
-- [Project Structure](#project-structure)
-- [Getting Started](#getting-started)
-- [Environment Variables](#environment-variables)
-- [Team & Ownership](#team--ownership)
-- [Git Workflow](#git-workflow)
-
----
-
-## Project Structure
-
+```text
+Scripted multilingual farmer conversation
+    -> Intake node (typed FarmerRequest)
+    -> Decision node (synthetic market net-return comparison)
+    -> Buyer-selection node (crop and quantity constraints)
+    -> Parallel deterministic negotiation nodes
+    -> Offer ranker (risk-adjusted net return)
+    -> Non-binding farmer report
 ```
+
+Plain Python defines the node order and shared state, while `asyncio.gather` runs independent
+middleman negotiations concurrently. All domain models, price rules, negotiation rules, and
+PostgreSQL persistence remain ordinary Python modules.
+
+The catalog currently covers four farmers speaking Marathi, Punjabi, Tamil, and Telugu, with
+three middlemen per farmer. Every non-English conversation line includes an English translation
+for review.
+
+## Project structure
+
+```text
 krishi-awaaz/
-├── telephony/          # Call handling and audio pipeline
-├── agents/              # Core reasoning logic
-│   └── prompts/         # Prompt templates, kept separate from code
-├── orchestration/        # Pipeline coordination, auth, error handling
-├── data/                # External data integrations
-├── db/                   # Database client, schema, queries
-├── dashboard/            # Internal status dashboard
-├── tests/                # Unit + integration tests
-├── scripts/              # One-off setup/utility scripts
-└── docs/                 # Internal documentation
+├── telephony/           # Reserved for call handling and audio
+├── agents/              # Domain models, negotiation logic, language templates
+│   └── prompts/         # Reserved for future model prompts
+├── orchestration/       # Plain-Python workflow, configuration, CLI
+├── data/                # Scenario loader and synthetic multilingual fixtures
+├── db/                  # PostgreSQL schema and persistence
+├── dashboard/           # Reserved for the future internal dashboard
+├── tests/               # Unit and workflow tests
+├── scripts/             # Reserved for setup and utility scripts
+├── docs/                # Reserved for internal documentation
+└── krishi_awaaz/        # Compatibility launcher for `python -m krishi_awaaz`
 ```
 
-| Folder | Owns |
-|---|---|
-| `telephony/` | Call flow, audio pipeline, latency |
-| `agents/` | Reasoning logic and prompts |
-| `orchestration/` | Wiring components together, auth, failure handling |
-| `data/` | External API integrations |
-| `db/` | Schema and all database reads/writes |
-| `dashboard/` | Internal visual status view |
-| `tests/` | Correctness checks before integration |
+Only the components already implemented contain application code. The telephony, dashboard,
+prompts, scripts, and docs folders are placeholders for later project stages.
 
-## Getting Started
+## Set up Python
 
-**1. Clone the repo**
-```bash
-git clone https://github.com/YOUR_USERNAME/krishi-awaaz.git
-cd krishi-awaaz
+Python 3.11 or newer is required.
+
+```powershell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+python -m pip install -e ".[dev]"
 ```
 
-**2. Set up your environment file**
-```bash
-cp .env.example .env
-```
-Fill in `.env` with real API keys (see [Environment Variables](#environment-variables)). Never commit this file — it's already gitignored.
+List and inspect the fixtures:
 
-**3. Install dependencies**
-```bash
-pip install -r requirements.txt
+```powershell
+krishi-sim list
+krishi-sim show nashik-onion-001
 ```
 
-**4. Set up the database**
-Run `db/schema.sql` against your configured database instance to create the required tables.
+Run a complete simulation without requiring PostgreSQL:
 
-**5. Seed test data (optional, for local development)**
-```bash
-python scripts/seed_test_data.py
+```powershell
+krishi-sim run nashik-onion-001 --no-db
 ```
 
-**6. Run a local test**
-```bash
-python scripts/run_local_demo.py
+Use `--json` when you want the typed output rather than the review-oriented transcript.
+
+## PostgreSQL
+
+The application only accepts a PostgreSQL SQLAlchemy URL for persistence. It does not silently
+fall back to SQLite.
+
+If Docker is available:
+
+```powershell
+docker compose up -d postgres
+Copy-Item .env.example .env
+$env:DATABASE_URL = "postgresql+psycopg://krishi:krishi@localhost:5432/krishi_awaaz"
+krishi-sim db-init
+krishi-sim run nashik-onion-001
 ```
 
-## Environment Variables
+The schema stores:
 
-Copy `.env.example` to `.env` and fill in the required keys. Ask in the team group chat if you need any of these — do not generate your own unless told to.
+- simulated farmer profiles and locations;
+- produce listings and minimum-price constraints;
+- synthetic market snapshots and logistics estimates;
+- simulated middleman profiles and hidden test constraints;
+- simulation runs and workflow events;
+- every original-language message and its English translation;
+- provisional offers, costs, rankings, and risk-adjusted totals.
 
+`db-init` uses SQLAlchemy metadata to create the initial schema and upsert the fixture
+participants. Before a real deployment, schema evolution should be moved to Alembic migrations.
 
-## Git Workflow
+## Important simulation boundaries
 
-```
-main            → always stable
-dev             → integration branch, merge feature branches here first
-feature/*       → e.g. feature/module-a, feature/module-b
-```
+- The intake transcript is scripted and validated into a `FarmerRequest`; it does not yet test
+  speech recognition or free-form information extraction.
+- A middleman's maximum price is hidden simulator state. It is available in `krishi-sim show`
+  for reviewers, but the negotiation algorithm never receives it as market evidence.
+- Quotes are explicitly provisional. The workflow never creates a binding sale.
+- Market observations and transport costs are synthetic fixtures.
+- Ranking prefers risk-adjusted net return, not the largest headline price.
 
-**Typical flow:**
-```bash
-git checkout dev
-git pull
-git checkout -b feature/your-feature-name
-# ... make changes ...
-git add .
-git commit -m "clear description of what changed"
-git push -u origin feature/your-feature-name
-```
-Then open a PR into `dev`. Merge to `main` only once a feature is tested and stable.
-
-**Before pushing, always double-check `.env` isn't staged:**
-```bash
-git status
-```
-
----
-
-Internal team repository. Do not share externally.
+These boundaries are intentional. A later voice adapter can supply transcripts to the same
+typed workflow without changing the negotiation and ranking contracts.
