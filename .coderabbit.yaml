@@ -1,0 +1,8 @@
+language: "en-US"
+reviews:
+  profile: "assertive" 
+  high_level_summary: true
+  sequence_diagrams: true
+  auto_review:
+    enabled: true
+    drafts: false
